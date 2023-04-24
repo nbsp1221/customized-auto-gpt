@@ -1,28 +1,36 @@
-# [Choice] Python version (use -bullseye variants on local arm64/Apple Silicon): 3, 3.10, 3-bullseye, 3.10-bullseye, 3-buster, 3.10-buster
-ARG VARIANT=3-bullseye
-FROM --platform=linux/amd64 python:3.10
+FROM mcr.microsoft.com/vscode/devcontainers/python:3.10
+USER vscode
+ENV HOME=/home/vscode
+ENV WORKSPACE=$HOME/repositories/nbsp1221/customized-auto-gpt
+WORKDIR $WORKSPACE
+RUN sudo chown -R vscode:vscode $HOME
 
-RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-    # Remove imagemagick due to https://security-tracker.debian.org/tracker/CVE-2019-10131
-    && apt-get purge -y imagemagick imagemagick-6-common
+# Remove ImageMagick due to https://security-tracker.debian.org/tracker/CVE-2019-10131
+RUN sudo apt update && \
+    sudo apt purge -y imagemagick imagemagick-6-common
 
-# Temporary: Upgrade python packages due to https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-40897
-# They are installed by the base image (python) which does not have the patch.
+# Upgrade Python packages due to https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-40897
 RUN python3 -m pip install --upgrade setuptools
 
+# Install GitHub CLI
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
+    sudo apt update && \
+    sudo apt install -y gh
+
+# Install Zsh
+RUN cd $HOME/repositories/nbsp1221 && \
+    git clone https://github.com/nbsp1221/dotfiles.git && \
+    cd dotfiles && \
+    ./zsh/installer.sh
+
 # Install Chrome for web browsing
-RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-    && curl -sSL https://dl.google.com/linux/direct/google-chrome-stable_current_$(dpkg --print-architecture).deb -o /tmp/chrome.deb \
-    && apt-get -y install /tmp/chrome.deb
+RUN sudo apt update && \
+    curl -sSL https://dl.google.com/linux/direct/google-chrome-stable_current_$(dpkg --print-architecture).deb -o /tmp/chrome.deb && \
+    sudo apt install -y /tmp/chrome.deb
 
-# [Optional] If your pip requirements rarely change, uncomment this section to add them to the image.
-# COPY requirements.txt /tmp/pip-tmp/
-# RUN pip3 --disable-pip-version-check --no-cache-dir install -r /tmp/pip-tmp/requirements.txt \
-#    && rm -rf /tmp/pip-tmp
-
-# [Optional] Uncomment this section to install additional OS packages.
-# RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-#     && apt-get -y install --no-install-recommends <your-package-list-here>
-
-# [Optional] Uncomment this line to install global node packages.
-# RUN su vscode -c "source /usr/local/share/nvm/nvm.sh && npm install -g <your-package-here>" 2>&1
+# Install Node.js
+RUN sudo rm -rf $NVM_DIR && \
+    export NVM_DIR="" && \
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash && \
+    /bin/zsh -c "source ~/.zshrc && nvm install --lts && nvm use --lts && corepack enable"
